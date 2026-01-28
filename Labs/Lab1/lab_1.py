@@ -12,9 +12,9 @@ JOINT_NAME_LEAD = "leg_front_r_3"
 
 ####
 ####
-KP = 0.0  # YOUR KP VALUE
-KI = 0.0 # YOUR KI VALUE
-KD = 0.0  # YOUR KD VALUE
+KP = 1.8   # YOUR KP VALUE
+KI = 0.1  # YOUR KI VALUE
+KD = 0.075   # YOUR KD VALUE
 ####
 ####
 LOOP_RATE = 200  # Hz
@@ -22,7 +22,7 @@ DELTA_T = 1 / LOOP_RATE
 MAX_TORQUE = 2.0
 DEAD_BAND_SIZE = 0.095
 PENDULUM_CONTROL = False
-LEG_TRACKING_CONTROL = False
+LEG_TRACKING_CONTROL = not PENDULUM_CONTROL
 
 
 class JointStateSubscriber(Node):
@@ -49,6 +49,9 @@ class JointStateSubscriber(Node):
         self.target_joint_vel = 0
         # self.torque_history = deque(maxlen=DELAY)
 
+        self.last_joint_error = 0
+        self.sum_joint_error = 0
+
         # Create a timer to run control_loop at the specified frequency
         self.create_timer(1.0 / LOOP_RATE, self.control_loop)
 
@@ -67,14 +70,20 @@ class JointStateSubscriber(Node):
 
         return torque
 
-    def calculate_torque_for_leg_tracking(self, joint_pos, joint_vel, target_joint_pos, target_joint_vel):
+    def calculate_torque_for_leg_tracking(self,joint_pos, joint_vel, target_joint_pos, target_joint_vel):
         ####
         #### YOUR CODE HERE
         ####
-        torque = 0
+        self.last_joint_error = (target_joint_pos-joint_pos)
+        self.sum_joint_error = self.sum_joint_error + self.last_joint_error * DELTA_T
 
+        if (self.sum_joint_error < -0.3):
+            self.sum_joint_error = -0.3
 
+        elif(self.sum_joint_error > 0.3):
+            self.sum_joint_error = 0.3
 
+        torque = KP*(target_joint_pos-joint_pos) + KD*(target_joint_vel-joint_vel)+KI*self.sum_joint_error
         # Leave this code unchanged
         if torque > 0:
             torque = max(torque, DEAD_BAND_SIZE)
@@ -85,8 +94,8 @@ class JointStateSubscriber(Node):
 
     def print_info(self):
         """Print joint information every 2 control loops"""
-        if True:
-            return
+        # if True:
+        #     return
             
         if self.print_counter == 0:
             self.get_logger().info(
